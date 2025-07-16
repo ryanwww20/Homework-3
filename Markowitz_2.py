@@ -38,6 +38,8 @@ for asset in assets:
 
 df = Bdf.loc["2019-01-01":"2024-04-01"]
 
+df_returns = df.pct_change().fillna(0)
+
 """
 Strategy Creation
 
@@ -50,7 +52,7 @@ class MyPortfolio:
     NOTE: You can modify the initialization function
     """
 
-    def __init__(self, price, exclude, lookback=50, gamma=0):
+    def __init__(self, price, exclude, lookback=200, gamma= 0.1):
         self.price = price
         self.returns = price.pct_change().fillna(0)
         self.exclude = exclude
@@ -69,6 +71,37 @@ class MyPortfolio:
         """
         TODO: Complete Task 4 Below
         """
+        self.portfolio_weights.loc[:, :] = 0.0
+
+        n_assets = len(assets)
+        for i, date in enumerate(self.price.index):
+            if i < self.lookback:
+                w = np.full(n_assets, 1.0 / n_assets, dtype=float)
+            else:
+                window = self.returns[assets].iloc[i - self.lookback + 1 : i + 1]
+
+                mom = (1.0 + window).prod() - 1.0
+
+                vol = window.std()
+
+                score = mom / vol.replace(0.0, np.nan)
+
+                score = score.clip(lower=0.0)
+
+                if np.all((~np.isfinite(score)) | (score <= 0.0)):
+                    inv_vol = 1.0 / vol.replace(0.0, np.nan)
+                    score = inv_vol
+
+                w = score.to_numpy(dtype=float)
+                w = np.where(np.isfinite(w), w, 0.0)
+
+                if w.sum() <= 0.0:
+                    w = np.full(n_assets, 1.0 / n_assets, dtype=float)
+                else:
+                    w = w / w.sum()
+
+            self.portfolio_weights.loc[date, assets] = w
+            self.portfolio_weights.loc[date, self.exclude] = 0.0
 
         """
         TODO: Complete Task 4 Above
